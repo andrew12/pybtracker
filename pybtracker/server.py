@@ -28,7 +28,7 @@ class UdpTrackerServerProto(asyncio.Protocol):
             self.server.activity[addr] = datetime.now()
             return struct.pack('!IIQ', 0, tid, connid)
         else:
-            return self.error(tid, 'Invalid protocol identifier.'.encode('utf-8'))
+            return self.error(tid, b'Invalid protocol identifier.')
 
     def process_announce(self, addr, connid, tid, data):
         self.server.logger.info('Received announce message.')
@@ -49,14 +49,14 @@ class UdpTrackerServerProto(asyncio.Protocol):
         last_valid = datetime.now() - timedelta(seconds=self.server.connid_valid_period)
         if not timestamp:
             # we didn't generate that connection identifier
-            return self.error(tid, 'Invalid connection identifier.'.encode('utf-8'))
+            return self.error(tid, b'Invalid connection identifier.')
         elif timestamp < last_valid:
             # we did generate that identifier, but it's too
             # old. remove it and send an error.
             del self.server.connids[connid]
-            return self.error(tid, 'Old connection identifier.'.encode('utf-8'))
+            return self.error(tid, b'Old connection identifier.')
         elif self.allowed_torrents and ih not in self.allowed_torrents:
-            return self.error(tid, 'Unknown/Forbidden torrent.'.encode('utf-8'))
+            return self.error(tid, b'Unknown/Forbidden torrent.')
         else:
             if ev == 0:
                 # make sure this client is not sending regular
@@ -66,7 +66,7 @@ class UdpTrackerServerProto(asyncio.Protocol):
                         and self.server.activity[connid] > allowed:
                     self.server.activity[connid] = datetime.now()
                     return self.error(
-                        tid, 'Requests too frequent.'.encode('utf-8'))
+                        tid, b'Requests too frequent.')
 
             self.server.activity[connid] = datetime.now()
 
@@ -127,12 +127,12 @@ class UdpTrackerServerProto(asyncio.Protocol):
             self.transport.sendto(resp, addr)
 
     def error_received(self, exc):
-        self.logger.info('Error received:'.format(exc))
+        self.logger.info(f'Error received:')
 
 
 def read_whitelist_file(logger, filename):
     infohashes = set()
-    with open(filename, 'r') as f:
+    with open(filename) as f:
         for line in f:
             if not line:
                 continue
@@ -180,7 +180,7 @@ class TrackerServer:
                     self.logger.info('Whitelist updated.')
                     self.allowed_torrents = allowed_torrents
                     self.proto.allowed_torrents = allowed_torrents
-            except IOError:
+            except OSError:
                 self.logger.error('Whitelist cannot be opened')
 
     async def start(self):
@@ -202,16 +202,16 @@ class TrackerServer:
             return
 
         if ih not in self.torrents:
-            self.logger.info('New info hash encountered: {}'.format(ih.hex()))
+            self.logger.info(f'New info hash encountered: {ih.hex()}')
             self.torrents[ih] = {}
             self.torrents[ih][peerid] = (ip, port, 0, 0, 0, (ev == 1))
         if ih in self.torrents and peerid not in self.torrents[ih]:
-            self.logger.debug('New peer encountered: {}'.format(peerid.hex()))
+            self.logger.debug(f'New peer encountered: {peerid.hex()}')
             self.torrents[ih][peerid] = (ip, port, 0, 0, 0, (ev == 1))
 
         if ev == 0:
             # none
-            self.logger.info('Regular announce from: {}'.format(peerid.hex()))
+            self.logger.info(f'Regular announce from: {peerid.hex()}')
 
             _ip, _port, _dl, _left, _ul, _completed = self.torrents[ih][peerid]
             if _ip != ip or _port != port:
@@ -220,15 +220,15 @@ class TrackerServer:
             self.torrents[ih][peerid] = (ip, port, dl, left, ul, _completed)
         elif ev == 1:
             # completed
-            self.logger.info('Completion announce from: {}'.format(peerid.hex()))
+            self.logger.info(f'Completion announce from: {peerid.hex()}')
             self.torrents[ih][peerid] = (ip, port, dl, left, ul, True)
         elif ev == 2:
             # started
-            self.logger.info('Start announce from: {}'.format(peerid.hex()))
+            self.logger.info(f'Start announce from: {peerid.hex()}')
             self.torrents[ih][peerid] = (ip, port, dl, left, ul, True)
         elif ev == 3:
             # stopped
-            self.logger.info('Stop announce from: {}. Removed peer.'.format(peerid.hex()))
+            self.logger.info(f'Stop announce from: {peerid.hex()}. Removed peer.')
             del self.torrents[ih][peerid]
             if self.torrents[ih] == {}:
                 del self.torrents[ih]

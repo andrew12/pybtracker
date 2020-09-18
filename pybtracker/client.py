@@ -42,7 +42,7 @@ class UdpTrackerClientProto(asyncio.Protocol):
             self.logger.warning('Invalid transaction ID received.')
 
     def error_received(self, exc):
-        self.logger.info('UDP client transmision error: {}'.format(exc))
+        self.logger.info(f'UDP client transmision error: {exc}')
 
     def get_tid(self):
         tid = random.randint(0, 0xffffffff)
@@ -170,7 +170,7 @@ class TrackerClient:
 
         scheme, netloc, _, _, _, _ = urlparse(announce_uri)
         if scheme != 'udp':
-            raise ValueError('Tracker scheme not supported: {}'.format(scheme))
+            raise ValueError(f'Tracker scheme not supported: {scheme}')
         if ':' not in netloc:
             self.logger.info('Port not specified in announce URI. Assuming 80.')
             tracker_host, tracker_port = netloc, 80
@@ -195,20 +195,20 @@ class TrackerClient:
 
     def callback(self, cb, *args):
         if cb not in self.allowed_callbacks:
-            raise ValueError('Invalid callback: {}'.format(cb))
+            raise ValueError(f'Invalid callback: {cb}')
 
         for c in self.callbacks[cb]:
             c(*args)
 
     def add_callback(self, name, func):
         if name not in self.allowed_callbacks:
-            raise ValueError('Invalid callback: {}'.format(cb))
+            raise ValueError(f'Invalid callback: {cb}')
 
         self.callbacks[name].append(func)
 
     def rm_callback(self, name, func):
         if name not in self.allowed_callbacks:
-            raise ValueError('Invalid callback: {}'.format(cb))
+            raise ValueError(f'Invalid callback: {cb}')
 
         self.callbacks[name].remove(func)
 
@@ -238,7 +238,7 @@ def hex_encoded_infohash(v):
 class NiceArgumentParser(argparse.ArgumentParser):
     def error(self, message):
         self.print_usage()
-        print('{}: error: {}'.format(self.prog, message))
+        print(f'{self.prog}: error: {message}')
         raise argparse.ArgumentError(None, message)
 
 class ClientShell(cmd.Cmd):
@@ -310,7 +310,7 @@ class ClientShell(cmd.Cmd):
             if ret:
                 print('Received {} peer(s) from the tracker:'.format(len(ret)))
                 for host, port in ret:
-                    print('    {}:{}'.format(host, port))
+                    print(f'    {host}:{port}')
             else:
                 print('No peers received from the tracker.')
         except ServerError as e:
