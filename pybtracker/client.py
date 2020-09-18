@@ -1,15 +1,17 @@
-import asyncio
-import os
-import struct
-import logging
-import random
-import cmd
 import argparse
-from urllib.parse import urlparse
+import asyncio
+import cmd
+import logging
+import os
+import random
+import struct
 from collections import defaultdict
-from ipaddress import ip_address
 from datetime import datetime, timedelta
+from ipaddress import ip_address
+from urllib.parse import urlparse
+
 from version import __version__
+
 
 class ServerError(Exception):
     pass

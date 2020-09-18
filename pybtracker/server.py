@@ -1,9 +1,10 @@
 import asyncio
-import struct
 import logging
+import struct
+from datetime import datetime, timedelta
 from ipaddress import ip_address
 from random import randint, sample
-from datetime import datetime, timedelta
+
 from version import __version__
 
 DEFAULT_INTERVAL = 300

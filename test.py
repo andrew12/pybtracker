@@ -1,11 +1,13 @@
 import asyncio
-import struct
 import logging
-import pybtracker
-import asynctest
-from ipaddress import ip_address
+import struct
 from datetime import datetime, timedelta
-from asynctest.mock import patch, Mock, CoroutineMock
+from ipaddress import ip_address
+
+import asynctest
+from asynctest.mock import CoroutineMock, Mock, patch
+
+import pybtracker
 
 logger = logging.getLogger(__name__)
 
@@ -615,6 +617,7 @@ class TrackerClientProtoTest(asynctest.TestCase):
                                   successful_connect=False)
 
 if __name__ == '__main__':
-    import logging, sys
+    import logging
+    import sys
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
     asynctest.main()
