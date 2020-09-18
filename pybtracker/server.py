@@ -19,27 +19,29 @@ class UdpTrackerServerProto(asyncio.Protocol):
         self.transport = None
 
     def error(self, tid, msg):
-        return struct.pack('!II', 3, tid) + msg
+        return struct.pack("!II", 3, tid) + msg
 
     def process_connect(self, addr, connid, tid, data):
-        self.server.logger.info('Received connect message.')
+        self.server.logger.info("Received connect message.")
         if connid == 0x41727101980:
-            connid = randint(0, 0xffffffffffffffff)
+            connid = randint(0, 0xFFFFFFFFFFFFFFFF)
             self.server.connids[connid] = datetime.now()
             self.server.activity[addr] = datetime.now()
-            return struct.pack('!IIQ', 0, tid, connid)
+            return struct.pack("!IIQ", 0, tid, connid)
         else:
-            return self.error(tid, b'Invalid protocol identifier.')
+            return self.error(tid, b"Invalid protocol identifier.")
 
     def process_announce(self, addr, connid, tid, data):
-        self.server.logger.info('Received announce message.')
+        self.server.logger.info("Received announce message.")
 
         # remove extensions
         if len(data) > 82:
             data = data[:82]
 
         # parse the request
-        ih, peerid, dl, left, ul, ev, ip, k, num_want, port = struct.unpack('!20s20sQQQIIIIH', data)
+        ih, peerid, dl, left, ul, ev, ip, k, num_want, port = struct.unpack(
+            "!20s20sQQQIIIIH", data
+        )
 
         # use the ip address in the message if it's provided
         if ip == 0:
@@ -50,24 +52,25 @@ class UdpTrackerServerProto(asyncio.Protocol):
         last_valid = datetime.now() - timedelta(seconds=self.server.connid_valid_period)
         if not timestamp:
             # we didn't generate that connection identifier
-            return self.error(tid, b'Invalid connection identifier.')
+            return self.error(tid, b"Invalid connection identifier.")
         elif timestamp < last_valid:
             # we did generate that identifier, but it's too
             # old. remove it and send an error.
             del self.server.connids[connid]
-            return self.error(tid, b'Old connection identifier.')
+            return self.error(tid, b"Old connection identifier.")
         elif self.allowed_torrents and ih not in self.allowed_torrents:
-            return self.error(tid, b'Unknown/Forbidden torrent.')
+            return self.error(tid, b"Unknown/Forbidden torrent.")
         else:
             if ev == 0:
                 # make sure this client is not sending regular
                 # announces too frequently
                 allowed = datetime.now() - timedelta(seconds=self.server.interval)
-                if connid in self.server.activity \
-                        and self.server.activity[connid] > allowed:
+                if (
+                    connid in self.server.activity
+                    and self.server.activity[connid] > allowed
+                ):
                     self.server.activity[connid] = datetime.now()
-                    return self.error(
-                        tid, b'Requests too frequent.')
+                    return self.error(tid, b"Requests too frequent.")
 
             self.server.activity[connid] = datetime.now()
 
@@ -79,8 +82,7 @@ class UdpTrackerServerProto(asyncio.Protocol):
 
             # count all peers that have announced "completed". these
             # are the seeders. the rest are leechers.
-            seeders = sum(1 for _, _, _, _, _, completed in all_peers
-                          if completed)
+            seeders = sum(1 for _, _, _, _, _, completed in all_peers if completed)
             leechers = len(all_peers) - seeders
 
             # we're not interested in anything but (ip, port) pairs
@@ -97,14 +99,16 @@ class UdpTrackerServerProto(asyncio.Protocol):
             peers = sample(all_peers, num_want)
 
             # now pack the (ip, port) pairs
-            peers = b''.join(
-                (ip_address(p[0]).packed + p[1].to_bytes(length=2, byteorder='big'))
-                for p in peers)
+            peers = b"".join(
+                (ip_address(p[0]).packed + p[1].to_bytes(length=2, byteorder="big"))
+                for p in peers
+            )
 
             # construct and return the response
-            return struct.pack(
-                '!IIIII',
-                1, tid, self.server.interval, leechers, seeders) + peers
+            return (
+                struct.pack("!IIIII", 1, tid, self.server.interval, leechers, seeders)
+                + peers
+            )
 
     def connection_made(self, transport):
         self.transport = transport
@@ -114,21 +118,19 @@ class UdpTrackerServerProto(asyncio.Protocol):
 
     def datagram_received(self, data, addr):
         if len(data) < 16:
-            self.logger.warning('Datagram smaller than 16 bytes.')
+            self.logger.warning("Datagram smaller than 16 bytes.")
             return
 
-        connid, action, tid = struct.unpack('!QII', data[:16])
-        resp = {
-            0: self.process_connect,
-            1: self.process_announce
-        }.get(action, lambda a, c, t, d: None)(addr, connid,
-                                               tid, data[16:])
+        connid, action, tid = struct.unpack("!QII", data[:16])
+        resp = {0: self.process_connect, 1: self.process_announce}.get(
+            action, lambda a, c, t, d: None
+        )(addr, connid, tid, data[16:])
 
         if resp:
             self.transport.sendto(resp, addr)
 
     def error_received(self, exc):
-        self.logger.info(f'Error received:')
+        self.logger.info(f"Error received:")
 
 
 def read_whitelist_file(logger, filename):
@@ -140,7 +142,7 @@ def read_whitelist_file(logger, filename):
             try:
                 ih = bytes.fromhex(line.strip())
             except ValueError:
-                logger.error('Invalid infohash in whitelist file.')
+                logger.error("Invalid infohash in whitelist file.")
             else:
                 infohashes.add(ih)
 
@@ -148,12 +150,14 @@ def read_whitelist_file(logger, filename):
 
 
 class TrackerServer:
-    def __init__(self,
-                 local_addr=('127.0.0.1', 6881),
-                 interval=DEFAULT_INTERVAL,
-                 connid_valid_period=120,
-                 allowed_torrents=None,
-                 loop=None):
+    def __init__(
+        self,
+        local_addr=("127.0.0.1", 6881),
+        interval=DEFAULT_INTERVAL,
+        connid_valid_period=120,
+        allowed_torrents=None,
+        loop=None,
+    ):
         self.local_addr = local_addr
         self.interval = interval
         self.connid_valid_period = connid_valid_period
@@ -178,74 +182,78 @@ class TrackerServer:
             try:
                 allowed_torrents = read_whitelist_file(self.logger, file_path)
                 if allowed_torrents ^ self.allowed_torrents:
-                    self.logger.info('Whitelist updated.')
+                    self.logger.info("Whitelist updated.")
                     self.allowed_torrents = allowed_torrents
                     self.proto.allowed_torrents = allowed_torrents
             except OSError:
-                self.logger.error('Whitelist cannot be opened')
+                self.logger.error("Whitelist cannot be opened")
 
     async def start(self):
         self.transport, self.proto = await self.loop.create_datagram_endpoint(
             lambda: UdpTrackerServerProto(self, self.allowed_torrents),
-            local_addr=self.local_addr)
+            local_addr=self.local_addr,
+        )
         self.local_addr = self.transport._sock.getsockname()
-        self.logger.info('Started listening on {}:{}.'.format(*self.local_addr))
+        self.logger.info("Started listening on {}:{}.".format(*self.local_addr))
         self.started_up.set()
 
     async def stop(self):
         self.transport.close()
         await self.proto.connection_lost_received.wait()
-        self.logger.info('Tracker stopped.')
+        self.logger.info("Tracker stopped.")
 
     def announce(self, ih, peerid, dl, left, ul, ev, ip, port):
         if ev not in [0, 1, 2, 3]:
-            self.logger.warning('Invalid event in announce.')
+            self.logger.warning("Invalid event in announce.")
             return
 
         if ih not in self.torrents:
-            self.logger.info(f'New info hash encountered: {ih.hex()}')
+            self.logger.info(f"New info hash encountered: {ih.hex()}")
             self.torrents[ih] = {}
             self.torrents[ih][peerid] = (ip, port, 0, 0, 0, (ev == 1))
         if ih in self.torrents and peerid not in self.torrents[ih]:
-            self.logger.debug(f'New peer encountered: {peerid.hex()}')
+            self.logger.debug(f"New peer encountered: {peerid.hex()}")
             self.torrents[ih][peerid] = (ip, port, 0, 0, 0, (ev == 1))
 
         if ev == 0:
             # none
-            self.logger.info(f'Regular announce from: {peerid.hex()}')
+            self.logger.info(f"Regular announce from: {peerid.hex()}")
 
             _ip, _port, _dl, _left, _ul, _completed = self.torrents[ih][peerid]
             if _ip != ip or _port != port:
-                self.logger.info('Peer "{}" announcing from new address {}:{}'
-                                 .format(peerid.hex(), ip, port))
+                self.logger.info(
+                    'Peer "{}" announcing from new address {}:{}'.format(
+                        peerid.hex(), ip, port
+                    )
+                )
             self.torrents[ih][peerid] = (ip, port, dl, left, ul, _completed)
         elif ev == 1:
             # completed
-            self.logger.info(f'Completion announce from: {peerid.hex()}')
+            self.logger.info(f"Completion announce from: {peerid.hex()}")
             self.torrents[ih][peerid] = (ip, port, dl, left, ul, True)
         elif ev == 2:
             # started
-            self.logger.info(f'Start announce from: {peerid.hex()}')
+            self.logger.info(f"Start announce from: {peerid.hex()}")
             self.torrents[ih][peerid] = (ip, port, dl, left, ul, True)
         elif ev == 3:
             # stopped
-            self.logger.info(f'Stop announce from: {peerid.hex()}. Removed peer.')
+            self.logger.info(f"Stop announce from: {peerid.hex()}. Removed peer.")
             del self.torrents[ih][peerid]
             if self.torrents[ih] == {}:
                 del self.torrents[ih]
 
 
 def end_point(v):
-    if ':' in v:
-        host, port = v.split(':')
+    if ":" in v:
+        host, port = v.split(":")
     else:
         host, port = v, 8000
 
-    if host == '':
-        host = '127.0.0.1'
+    if host == "":
+        host = "127.0.0.1"
 
-    if port == '':
-        port = '8000'
+    if port == "":
+        port = "8000"
 
     port = int(port)
 
@@ -254,15 +262,15 @@ def end_point(v):
 
 def setup_logging(args):
     import sys
+
     logger = logging.getLogger(__name__)
-    formatter = logging.Formatter(
-        '%(asctime) -15s - %(levelname) -8s - %(message)s')
+    formatter = logging.Formatter("%(asctime) -15s - %(levelname) -8s - %(message)s")
     level = {
-        'debug': logging.DEBUG,
-        'info': logging.INFO,
-        'warning': logging.WARNING,
-        'error': logging.ERROR,
-        'critical': logging.CRITICAL
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
     }[args.log_level]
 
     if args.log_to_stdout:
@@ -285,25 +293,36 @@ def setup_logging(args):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description='UDP tracker.')
+    parser = argparse.ArgumentParser(description="UDP tracker.")
     parser.add_argument(
-        '--bind', '-b', default='127.0.0.1:8000', type=end_point,
-        metavar='HOST:PORT',
-        help='The address to bind to. Defaults to 127.0.0.1:8000')
+        "--bind",
+        "-b",
+        default="127.0.0.1:8000",
+        type=end_point,
+        metavar="HOST:PORT",
+        help="The address to bind to. Defaults to 127.0.0.1:8000",
+    )
     parser.add_argument(
-        '--whitelist', '-w', default='',
-        help='Whitelist with torrent infohashes.')
+        "--whitelist", "-w", default="", help="Whitelist with torrent infohashes."
+    )
     parser.add_argument(
-        '--log-to-stdout', '-O', action='store_true', default=False,
-        help='Log to standard output.')
-    parser.add_argument('--log-file', '-l', help='Log to the specified file.')
+        "--log-to-stdout",
+        "-O",
+        action="store_true",
+        default=False,
+        help="Log to standard output.",
+    )
+    parser.add_argument("--log-file", "-l", help="Log to the specified file.")
     parser.add_argument(
-        '--log-level', '-L', default='info',
-        choices=['debug', 'info', 'warning', 'error', 'critical'],
-        help='Set log level. Defaults to "info".')
+        "--log-level",
+        "-L",
+        default="info",
+        choices=["debug", "info", "warning", "error", "critical"],
+        help='Set log level. Defaults to "info".',
+    )
     parser.add_argument(
-        '--version', '-V', action='version',
-        version='pybtracker v' + __version__)
+        "--version", "-V", action="version", version="pybtracker v" + __version__
+    )
 
     args = parser.parse_args()
 
@@ -316,9 +335,9 @@ def main():
     if args.whitelist:
         allowed_torrents = read_whitelist_file(logger, args.whitelist)
 
-    tracker = TrackerServer(local_addr=args.bind,
-                            loop=loop,
-                            allowed_torrents=allowed_torrents)
+    tracker = TrackerServer(
+        local_addr=args.bind, loop=loop, allowed_torrents=allowed_torrents
+    )
 
     if args.whitelist:
         asyncio.ensure_future(tracker.watcher_whitelist(args.whitelist))
@@ -331,5 +350,5 @@ def main():
         loop.run_until_complete(tracker.stop())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
